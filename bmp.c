@@ -7,21 +7,15 @@ void bmp_load(char *bmp_input_file_name, char *bmp_output_file_name) {
         printf("Could not open the image.");
         exit(1);
     }
-    bmp_header = (bmp_header_t *) malloc(sizeof(bmp_header_t));
+    copy_to_output();
+    bmp_header = (bitmap_header_t *) malloc(sizeof(bitmap_header_t));
+    bmp_header->bitmap_magic = (bitmap_magic_t *) malloc(sizeof(bitmap_magic_t));
     bmp_header->bitmap_file_header = (bitmap_file_header_t *) malloc(sizeof(bitmap_file_header_t));
-    bmp_header->DIB_header = (DIB_header_t *) malloc(sizeof(DIB_header_t));
-    fseek(bmp_input_file, 0, SEEK_SET);
-    fread(&bmp_header->bitmap_file_header->signatute, 2, 1, bmp_input_file);
-    fread(&bmp_header->bitmap_file_header->file_size, 4, 1, bmp_input_file);
-    fread(&bmp_header->bitmap_file_header->reserved1, 2, 1, bmp_input_file);
-    fread(&bmp_header->bitmap_file_header->reserved1, 2, 1, bmp_input_file);
-    fread(&bmp_header->bitmap_file_header->pixel_array_offset, 4, 1, bmp_input_file);
-    fseek(bmp_input_file, 14, SEEK_SET);
-    fread(&bmp_header->DIB_header->DIB_header_size, 4, 1, bmp_input_file);
-    fread(&bmp_header->DIB_header->image_width, 4, 1, bmp_input_file);
-    fread(&bmp_header->DIB_header->image_height, 4, 1, bmp_input_file);
-    fread(&bmp_header->DIB_header->planes, 2, 1, bmp_input_file);
-    fread(&bmp_header->DIB_header->bits_per_pixel, 2, 1, bmp_input_file);
+    bmp_header->bitmap_info_header = (bitmap_info_header_t *) malloc(sizeof(bitmap_info_header_t));
+    rewind(bmp_input_file);
+    fread(bmp_header->bitmap_magic, sizeof(bitmap_magic_t), 1, bmp_input_file);
+    fread(bmp_header->bitmap_file_header, sizeof(bitmap_file_header_t), 1, bmp_input_file);
+    fread(bmp_header->bitmap_info_header, sizeof(bitmap_info_header_t), 1, bmp_input_file);
 }
 
 void bmp_close() {
@@ -29,72 +23,76 @@ void bmp_close() {
     fclose(bmp_output_file);
 }
 
-int32_t bmp_get_width() {
-    return bmp_header->DIB_header->image_width;
+uint32_t bmp_width() {
+    return bmp_header->bitmap_info_header->width;
 }
 
-int32_t bmp_get_height() {
-    return bmp_header->DIB_header->image_height;
+uint32_t bmp_height() {
+    return bmp_header->bitmap_info_header->height;
 }
 
-int16_t bmp_get_bits_per_pixel() {
-    return bmp_header->DIB_header->bits_per_pixel;
+uint16_t bmp_bits_per_pixel() {
+    return bmp_header->bitmap_info_header->bits_per_pixel;
 }
 
-int16_t bmp_get_pixel_array_offset() {
+uint16_t bmp_pixel_array_offset() {
     return bmp_header->bitmap_file_header->pixel_array_offset;
 }
 
-int16_t bmp_get_bytes_per_pixel() {
-    return bmp_get_bits_per_pixel() / 8;
+uint8_t bmp_pixel_size() {
+    return bmp_bits_per_pixel() / 8;
 }
 
-int16_t bmp_get_row_padding() {
-    int usefull_bytes_per_row = bmp_get_width() * bmp_get_bytes_per_pixel();
-    int mod = usefull_bytes_per_row % 4;
-    if(mod) {
-        return 4 - mod;
-    }
-    return 0;
+uint8_t bmp_row_padding() {
+    uint16_t row_size_with_padding = bmp_row_size();
+    uint16_t row_size_without_padding = bmp_width() * bmp_pixel_size();
+    return (row_size_with_padding - row_size_without_padding);
 }
 
-int16_t bmp_get_row_size() {
-    return bmp_get_width() * bmp_get_bytes_per_pixel() + bmp_get_row_padding();
+uint32_t bmp_image_size() {
+    return bmp_header->bitmap_info_header->image_size;
 }
 
-uint8_t *bmp_get_row(int row) {
-    int i, j;
+uint16_t bmp_row_size() {
+    return bmp_image_size() / bmp_height();
+}
+
+uint8_t *bmp_read_row(uint16_t row) {
     uint8_t *row_data;
-    int16_t width = bmp_get_width();
-    int16_t bytes_per_pixel = bmp_get_bytes_per_pixel();
-    row_data = (int8_t *) malloc(bmp_get_row_size() - bmp_get_row_padding());
-    fseek(bmp_input_file, bmp_get_pixel_array_offset() + (bmp_get_row_size() * row), SEEK_SET);
-    for(i = 0; i < width; i++) {
-        for(j = 0; j < bytes_per_pixel; j++) {
-            fread(&row_data[(i * bytes_per_pixel) + j], 1, 1, bmp_input_file);
-        }
-    }
+    row_data = (uint8_t *) malloc(bmp_row_size());
+    fseek(bmp_input_file, bmp_pixel_array_offset() + (bmp_row_size() * row), SEEK_SET);
+    fread(row_data, bmp_row_size(), 1, bmp_input_file);
     return row_data;
 }
 
-void bmp_set_row(int row, uint8_t *row_data) {
-    int i, j;
-    int16_t width = bmp_get_width();
-    int16_t bytes_per_pixel = bmp_get_bytes_per_pixel();
-    fseek(bmp_output_file, bmp_get_pixel_array_offset() + (bmp_get_row_size() * row), SEEK_SET);
-    for(i = 0; i < width; i++) {
-        for(j = 0; j < bytes_per_pixel; j++) {
-            fwrite(&row_data[(i * bytes_per_pixel) + j], 1, 1, bmp_output_file);
-        }
-    }
+size_t bmp_write_row(uint16_t row, uint8_t *row_data) {
+    fseek(bmp_output_file, bmp_pixel_array_offset() + (bmp_row_size() * row), SEEK_SET);
+    return fwrite(row_data, bmp_row_size(), 1, bmp_output_file);
 }
 
 void copy_to_output() {
     char buffer;
-    fseek(bmp_input_file, 0, SEEK_SET);
-    fseek(bmp_output_file, 0, SEEK_SET);
+    rewind(bmp_input_file);
+    rewind(bmp_output_file);
     while(!feof(bmp_input_file)) {
         fread(&buffer, 1, 1, bmp_input_file);
         fwrite(&buffer, 1, 1, bmp_output_file);
     }
 }
+
+uint8_t bmp_is_valid() {
+    uint8_t c0 = bmp_header->bitmap_magic->magic[0];
+    uint8_t c1 = bmp_header->bitmap_magic->magic[1];
+    if((c0 == 'B' && (c1 == 'P' || c1 == 'A')) || 
+        (c0 == 'C' && (c1 == 'I') || (c1 == 'P')) ||
+        (c0 == 'I' && c1 == 'C') ||
+        (c0 == 'P' && c1 == 'T')) {
+        return 1;
+    }
+    return 0;
+}
+
+uint8_t bmp_is_argb_image() {
+    return bmp_bits_per_pixel() > 24;
+}
+
