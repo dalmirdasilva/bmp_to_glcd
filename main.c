@@ -2,6 +2,7 @@
 #include "bmp.c"
 #include "convert.c"
 #include "glcd.c"
+#include "gbm.c"
 #include "main.h"
 
 void main(int argc, char *argv[]) {
@@ -17,4 +18,7 @@ void main(int argc, char *argv[]) {
     glcd_draw_image_into_buffer();
     glcd_draw_buffer_into_file("/tmp/s.txt");
     glcd_generate_code_from_buffer("/tmp/s2.txt");
+    gbm_init();
+    gbm_draw_image_into_buffer();
+    gbm_generate_code_from_buffer("/tmp/out.gbm");
 }

@@ -5,7 +5,7 @@ float bmp_rgb_to_gray_scale(uint8_t rgb[]) {
 }
 
 uint8_t rgb_to_black_and_white(uint8_t rgb[]) {
-    return (bmp_rgb_to_gray_scale(rgb) > 120) ? 1 : 0;
+    return (bmp_rgb_to_gray_scale(rgb) > 255) ? 1 : 0;
 }
 
 void bmp_read_pixel_from(uint8_t *pixel_data, uint8_t *bmp_row) {
@@ -26,7 +26,7 @@ void bmp_rgb_pixel_to_bw_pixel(uint8_t *pixel_data, uint8_t inverted) {
     int8_t i = 0;
     uint8_t mask = (inverted) ? 0x00 : 0xff;
     //printf("%f\n", bmp_rgb_to_gray_scale(pixel_data));
-    if(bmp_rgb_to_gray_scale(pixel_data) > 100) {
+    if(bmp_rgb_to_gray_scale(pixel_data) > 255) {
         mask = (inverted) ? 0xff : 0x00;
     }
     for(; i < 3; i++) {
